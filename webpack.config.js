@@ -83,5 +83,5 @@ module.exports = {
         hot: true,
         host: 'localhost' // originally 0.0.0.0
     },
-    devtool: 'source-map'
+    devtool: 'inline-eval-cheap-source-map'
 };

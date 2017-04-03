@@ -31,6 +31,7 @@ import Cam from './cam'
 import Quote from './quote'
 import Settings from './settings'
 import About from './about'
+import Wizard from './wizard'
 
 import { AllowCapture } from './capture'
 import { DocumentCacheHolder } from './document-cache'
@@ -122,6 +123,7 @@ class LaserWeb extends React.Component {
         // <Quote id="quote" title="Quote" icon="money" />
         return (
             <AllowCapture style={{ height: '100%' }}>
+                <Wizard style={{ position: 'absolute', width: '100%'}} />    
                 <DocumentCacheHolder style={{ width: '100%' }} documents={this.props.documents}>
                     <div style={{ display: 'flex', flexDirection: 'row', height: '100%' }}>
                         <Sidebar ref="sidebar" style={{ flexGrow: 0, flexShrink: 0 }}>
