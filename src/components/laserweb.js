@@ -41,17 +41,19 @@ import { keyboardUndoAction } from '../actions/laserweb';
 import keydown, { Keys } from 'react-keydown';
 import keyboardJS from 'keyboardjs'
 
-import { fireMacroByKeyboard } from '../actions/macros'
+import { fireMacroById } from '../actions/macros'
 
 import { GlobalStore } from '../index'
 
 import { VideoCapture } from '../lib/video-capture'
 
- var vex = require('vex-js/src/vex.js')
-try{ vex.registerPlugin(require('vex-dialog/src/vex.dialog.js'))} catch(e){}
-        vex.defaultOptions.className = 'vex-theme-default'
+export const vex = require('vex-js/src/vex.js')
+try { vex.registerPlugin(require('vex-dialog/src/vex.dialog.js')) } catch (e) { }
+vex.defaultOptions.className = 'vex-theme-default'
 import 'vex-js/dist/css/vex.css';
 import 'vex-js/dist/css/vex-theme-default.css';
+
+import { version } from '../reducers/settings'
 
 /**
  * LaserWeb main component (layout).
@@ -62,57 +64,67 @@ import 'vex-js/dist/css/vex-theme-default.css';
  */
 
 export const confirm = (message, callback) => {
-        vex.dialog.confirm({message,callback})
+    vex.dialog.confirm({ message, callback })
 }
 
 export const prompt = (message, placeholder, callback, skip) => {
-        if (skip) return callback(placeholder);
-        vex.dialog.open({
-            message,
-            input: `<input name="prompt" type="text" placeholder="${placeholder}" value="${placeholder}"required />`,
-            buttons: [
-                $.extend({}, vex.dialog.buttons.YES, { text: 'Ok' }),
-                $.extend({}, vex.dialog.buttons.NO, { text: 'Cancel' })
-            ],
-            callback: function (data) {
-                if (!data) {
-                    callback(null)
-                } else {
-                   callback(data.prompt)
-                }
+    if (skip) return callback(placeholder);
+    vex.dialog.open({
+        message,
+        input: `<input name="prompt" type="text" placeholder="${placeholder}" value="${placeholder}"  />`,
+        buttons: [
+            $.extend({}, vex.dialog.buttons.YES, { text: 'Ok' }),
+            $.extend({}, vex.dialog.buttons.NO, { text: 'Cancel' })
+        ],
+        callback: function (data) {
+            if (data===false) {
+                callback(null)
+            } else {
+                callback(data.prompt || "")
             }
-        })
+        }
+    })
 }
 
 export const alert = (unsafeMessage) => {
-        vex.dialog.alert({unsafeMessage})
+    vex.dialog.alert({ unsafeMessage })
+}
+
+const updateTitle=()=>{
+    document.title = `Laserweb ${version}`;
 }
 
 class LaserWeb extends React.Component {
+
+    componentWillReceiveProps(nextProps) {
+        updateTitle();
+    }
 
     shouldComponentUpdate(nextProps, nextState) {
         return nextProps.documents !== this.props.documents;
     }
 
     componentDidMount() {
+        updateTitle();
 
         if (!window.keyboardLogger) {
             window.keyboardLogger = keyboardJS;
-            let that = this
+            
             window.keyboardLogger.bind(['command + z', 'ctrl + z'], function (e) {
-                that.props.handleUndo(e);
-            });
+                this.props.handleUndo(e);
+            }.bind(this));
 
-            window.keyboardLogger.bind(Object.keys(that.props.macros), function (e) {
-                that.props.handleMacro(e, that.props.macros)
-            })
+            Object.entries(this.props.macros).filter(entry=>entry[1].keybinding!=="").map(entry=>entry[1].keybinding).forEach((key)=>{
+                window.keyboardLogger.bind(key, function (e) { this.props.handleMacro(e, key, this.props.macros) }.bind(this))
+            });
+            
         }
 
         if (!window.videoCapture) {
             const onNextFrame = (callback) => { setTimeout(() => { window.requestAnimationFrame(callback) }, 0) }
             onNextFrame(() => {
                 window.videoCapture = new VideoCapture()
-                window.videoCapture.scan(this.props.settings.toolVideoDevice, this.props.settings.toolVideoResolution, (obj) => { this.props.handleVideoStream(this.props.settings.toolVideoDevice,obj) })
+                window.videoCapture.scan(this.props.settings.toolVideoDevice, this.props.settings.toolVideoResolution, (obj) => { this.props.handleVideoStream(this.props.settings.toolVideoDevice, obj) })
             })
         }
     }
@@ -121,19 +133,22 @@ class LaserWeb extends React.Component {
         // 2017-01-21 Pvdw - removed the following from Dock
         // <Gcode id="gcode" title="G-Code" icon="file-code-o" />
         // <Quote id="quote" title="Quote" icon="money" />
+
+
+
         return (
             <AllowCapture style={{ height: '100%' }}>
                 <Wizard style={{ position: 'absolute', width: '100%'}} />    
                 <DocumentCacheHolder style={{ width: '100%' }} documents={this.props.documents}>
                     <div style={{ display: 'flex', flexDirection: 'row', height: '100%' }}>
                         <Sidebar ref="sidebar" style={{ flexGrow: 0, flexShrink: 0 }}>
-                            <Cam id="cam" title="CAM" icon="pencil-square-o" />
+                            <Cam id="cam" title="Files" icon="pencil-square-o" />
                             <Com id="com" title="Comms" icon="plug" />
-                            <Jog id="jog" title="Jog" icon="arrows-alt" />
+                            <Jog id="jog" title="Control" icon="arrows-alt" />
                             <Settings id="settings" title="Settings" icon="cogs" />
                             <About id="about" title="About" icon="question" />
                         </Sidebar>
-                        <Workspace style={{ flexGrow: 1, position:"relative" }} />
+                        <Workspace style={{ flexGrow: 1, position: "relative" }} />
                     </div>
                 </DocumentCacheHolder>
             </AllowCapture>
@@ -143,7 +158,7 @@ class LaserWeb extends React.Component {
 
 const mapStateToProps = (state) => {
     return {
-        macros: state.macros,
+        macros: state.settings.macros,
         visible: state.panes.visible,
         documents: state.documents,
         settings: state.settings,
@@ -156,15 +171,15 @@ const mapDispatchToProps = (dispatch) => {
             evt.preventDefault();
             dispatch(keyboardUndoAction(evt))
         },
-        handleMacro: (evt, macros) => {
-            let macroAction = fireMacroByKeyboard(evt, macros)
+        handleMacro: (evt, key, macros) => {
+            let macroAction = fireMacroById(key, macros)
             if (macroAction) {
                 evt.preventDefault();
                 dispatch(macroAction)
             }
         },
         handleVideoStream: (deviceId, props) => {
-            if (props===false) dispatch({type: "SETTINGS_SET_ATTRS", payload:{ attrs: {toolVideoDevice:null} }})
+            if (props === false) dispatch({ type: "SETTINGS_SET_ATTRS", payload: { attrs: { toolVideoDevice: null } } })
         }
 
     }

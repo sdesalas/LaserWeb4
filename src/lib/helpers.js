@@ -40,9 +40,61 @@ export function deepMerge(target, source) {
   return output;
 }
 
+export function getDescendantProp(obj, desc) {
+    var arr = desc.split(".");
+    while(arr.length && (obj = obj[arr.shift()]));
+    return obj;
+}
+
 export function cast(value, def = '') {
     if (value === undefined) return def;
     if (value === false) return "No";
     if (value === true) return "Yes";
     return String(value);
 }
+
+export function clamp(num, min, max) {
+  return num <= min ? min : num >= max ? max : num;
+}
+
+
+export const captureConsole = () => {
+  
+  window.__capture=window.console;
+  let captures=[];
+  
+  window.console = {
+    log(...args){
+      captures.push({method:"log",args})
+    },
+
+    warn(...args){
+      captures.push({method:"warn",args})
+    },
+
+    error(...args){
+      captures.push({method:"error",args})
+    },
+
+    info(...args){
+      captures.push({method:"info",args})
+    }
+  }
+
+  return (keys=[])=>{
+    window.console = window.__capture;
+    if (keys === true) keys=['log','warn','error','info']
+    if (keys.length){
+      
+      captures.forEach(item => {
+        if (keys.includes(item.method)) {
+          window.console[item.method].apply(null, item.args) 
+        }
+      })
+    }
+
+    return captures;
+  }
+
+}
+

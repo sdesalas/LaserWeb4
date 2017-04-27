@@ -4,9 +4,13 @@ import { deepMerge } from "../lib/helpers"
 import generateName from 'sillyname'
 import uuid from 'node-uuid';
 
-import {actionTypes} from 'redux-localstorage'
+import { actionTypes } from 'redux-localstorage'
 
-const initialState = require("../data/lw.materials/material-database.json");
+import { OPERATION_INITIALSTATE } from './operation'
+
+import CommandHistory from '../components/command-history'
+
+export const MATERIALDB_INITIALSTATE = require("../data/lw.materials/material-database.json");
 
 function generateInteger(min, max) {
     return Math.floor(Math.random() * (max - min)) + min;
@@ -29,9 +33,11 @@ const PRESET_TEMPLATE = (type, machineProfile = null) => {
         notes: "",
         type: type,
         machine_profile: machineProfile,
-        params: {}
+        params: OPERATION_INITIALSTATE
     }
 }
+
+export const DEFAULT_GROUPING_NAME = '__SAVES__';
 
 
 const togglePresetAttribute = (state, id, attribute, processPreset = null) => {
@@ -76,7 +82,7 @@ const toggleGroupAttribute = (state, id, attribute, processGroup = null) => {
 }
 
 
-export const materialDatabase = (state = initialState, action) => {
+export const materialDatabase = (state = MATERIALDB_INITIALSTATE, action) => {
 
 
     switch (action.type) {
@@ -167,10 +173,36 @@ export const materialDatabase = (state = initialState, action) => {
         case "MATERIALDB_PRESET_TOGGLE_EDIT":
             return togglePresetAttribute(state, action.payload, 'isEditable')
 
+        case "MATERIALDB_PRESET_NEW":
+            const grouping_name = action.payload.grouping || DEFAULT_GROUPING_NAME;
+            let groupings = state.slice();
+            let grouping = groupings.find((grouping) => (grouping.name === grouping_name))
+
+            if (!grouping) {
+                grouping = Object.assign(GROUP_TEMPLATE(), { name: grouping_name })
+                groupings.push(grouping);
+            }
+            let preset_name = action.payload.preset.name || action.payload.name || ("** " + generateName() + " **");
+            let existingPreset = grouping.presets.find((preset) => preset.name === preset_name);
+            if (!existingPreset) {
+                
+                let attrs = Object.assign(
+                                PRESET_TEMPLATE(action.payload.preset.type), 
+                                { name:  preset_name, params: omit(action.payload.preset,['id','documents'])}
+                             );
+                CommandHistory.write(`Creating preset "${preset_name}" into grouping "${grouping.name}"`,CommandHistory.SUCCESS)
+                return materialDatabase(groupings, { type: 'MATERIALDB_PRESET_ADD', payload: { groupId: grouping.id, attrs } })
+            } else {
+                CommandHistory.warn(`Updating preset "${existingPreset.name}" of grouping "${grouping.name}"`)
+                return materialDatabase(groupings, { type: 'MATERIALDB_PRESET_SET_ATTRS', payload: { presetId: existingPreset.id, attrs: { params: action.payload.preset} } })
+            }
+
         case actionTypes.INIT:
-                let lockedState = initialState.slice().map((vendor)=>{ return {...vendor, locked:true }});
-                if (action.payload) return Object.assign(action.payload.materialDatabase, lockedState);
-                return state;
+            if (action.payload) {
+                let lockedState = MATERIALDB_INITIALSTATE.slice().map((vendor) => { return { ...vendor, _locked: true } });
+                return Object.assign(action.payload.materialDatabase || {}, lockedState);
+            }
+            return state;
 
         default:
             return state;

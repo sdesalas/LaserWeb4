@@ -23,6 +23,8 @@ import { VideoDeviceField, VideoPort, VideoResolutionField } from './webcam';
 
 import { alert, prompt, confirm } from './laserweb';
 
+import { getSubset } from 'redux-localstorage-filter';
+
 export class ApplicationSnapshot extends React.Component {
 
     constructor(props) {
@@ -32,10 +34,7 @@ export class ApplicationSnapshot extends React.Component {
     }
 
     getExportData(keys) {
-        let state = this.props.state;
-        let exp = {}
-        keys.forEach((o) => { exp[o] = state[o] })
-        return exp;
+        return getSubset(this.props.state, keys)
     }
 
     handleChange(data) {
@@ -48,10 +47,12 @@ export class ApplicationSnapshot extends React.Component {
             <div className="well well-sm " id="ApplicationSnapshot">
                 <CheckBoxListField onChange={(data) => this.handleChange(data)} data={data} />
                 <section>
-                    <ApplicationSnapshotToolbar loadButton saveButton stateKeys={this.state.keys} label="On File" saveName="laserweb-snapshot.json" />
+                    <table style={{ width: 100 + '%' }}><tbody><tr><td><strong>On File</strong></td>
+                        <td><ApplicationSnapshotToolbar loadButton saveButton stateKeys={this.state.keys} saveName="laserweb-snapshot.json" /></td></tr></tbody></table>
                 </section>
                 <section>
-                    <ApplicationSnapshotToolbar recoverButton storeButton stateKeys={this.state.keys} label="On LocalStorage" />
+                    <table style={{ width: 100 + '%' }}><tbody><tr><td><strong>On LocalStorage</strong></td>
+                        <td><ApplicationSnapshotToolbar recoverButton storeButton stateKeys={this.state.keys} /></td></tr></tbody></table>
                 </section>
             </div>
         )
@@ -70,15 +71,12 @@ export class ApplicationSnapshotToolbar extends React.Component {
     }
 
     getExportData(keys) {
-        let state = this.props.state;
-        let exp = {}
-        keys.forEach((o) => { exp[o] = state[o] })
-        return exp;
+        return getSubset(this.props.state, keys)
     }
 
     handleDownload(statekeys, saveName, e) {
         prompt('Save as', saveName || "laserweb-snapshot.json", (file) => {
-            if (file!==null) {
+            if (file !== null) {
                 statekeys = Array.isArray(statekeys) ? statekeys : (this.props.stateKeys || []);
                 this.props.handleDownload(file, this.getExportData(statekeys), downloadSnapshot)
             }
@@ -103,7 +101,7 @@ export class ApplicationSnapshotToolbar extends React.Component {
     render() {
         let buttons = [];
         if (this.props.loadButton) {
-            buttons.push(<FileField onChange={(e) => this.handleUpload(e.target.files[0], this.props.loadButton)}><Button bsStyle="danger" bsSize="xs">Load <Icon name="upload" /></Button></FileField>);
+            buttons.push(<FileField onChange={(e) => this.handleUpload(e.target.files[0], this.props.loadButton)} accept="application/json, .json"><Button bsStyle="danger" bsSize="xs">Load <Icon name="upload" /></Button></FileField>);
         }
         if (this.props.saveButton) {
             buttons.push(<Button onClick={(e) => this.handleDownload(this.props.saveButton, this.props.saveName, e)} className="btn btn-success btn-xs">Save <Icon name="download" /></Button>);
@@ -115,9 +113,8 @@ export class ApplicationSnapshotToolbar extends React.Component {
             buttons.push(<Button onClick={(e) => this.handleStore(this.props.storeButton)} bsClass="btn btn-success btn-xs">Save <Icon name="download" /></Button>);
         }
 
-        return <div className={this.props.className}><strong>{this.props.label || "Snapshot"}</strong>
+        return <div>
             <div style={{ float: "right", clear: "right" }}>{buttons.map((button, i) => React.cloneElement(button, { key: i }))}</div>
-            <br style={{ clear: 'both' }} />
         </div>
     }
 }
@@ -185,7 +182,7 @@ class Settings extends React.Component {
 
     render() {
 
-       
+
 
         let isVideoDeviceSelected = Boolean(this.props.settings['toolVideoDevice'] && this.props.settings['toolVideoDevice'].length);
 
@@ -245,6 +242,7 @@ class Settings extends React.Component {
                         <TextField {...{ object: this.props.settings, field: 'gcodeToolOn', setAttrs: setSettingsAttrs, description: 'Tool ON', rows: 5, style: { resize: "vertical" } }} />
                         <TextField {...{ object: this.props.settings, field: 'gcodeToolOff', setAttrs: setSettingsAttrs, description: 'Tool OFF', rows: 5, style: { resize: "vertical" } }} />
                         <NumberField {...{ object: this.props.settings, field: 'gcodeSMaxValue', setAttrs: setSettingsAttrs, description: 'PWM Max S value' }} />
+                        <NumberField {...{ object: this.props.settings, field: 'gcodeCheckSizePower', setAttrs: setSettingsAttrs, description: 'Check-Size Power', units: '%' }} />
                         <NumberField {...{ object: this.props.settings, field: 'gcodeToolTestPower', setAttrs: setSettingsAttrs, description: 'Tool Test Power', units: '%' }} />
                         <NumberField {...{ object: this.props.settings, field: 'gcodeToolTestDuration', setAttrs: setSettingsAttrs, description: 'Tool Test duration', units: 'ms' }} />
                     </SettingsPanel>
@@ -273,9 +271,18 @@ class Settings extends React.Component {
                     </Panel>
 
                     <Panel collapsible header="Tools" bsStyle="danger" eventKey="8" >
-                        <ApplicationSnapshotToolbar loadButton saveButton stateKeys={['settings']} label="Settings" saveName="laserweb-settings.json" /><hr />
-                        <ApplicationSnapshotToolbar loadButton saveButton stateKeys={['machineProfiles']} label="Machine Profiles" saveName="laserweb-profiles.json" /><hr />
-                        <h5 >Application Snapshot  <Label bsStyle="warning">Experimental!</Label></h5>
+                        <table style={{ width: 100 + '%' }}><tbody>
+                            <tr><td><strong>Settings</strong></td>
+                            <td><ApplicationSnapshotToolbar loadButton saveButton stateKeys={['settings']} label="Settings" saveName="laserweb-settings.json" /><hr/></td></tr>
+                            <tr><td><strong>Machine Profiles</strong></td>
+                            <td><ApplicationSnapshotToolbar loadButton saveButton stateKeys={['machineProfiles']} label="Machine Profiles" saveName="laserweb-profiles.json" /><hr/></td></tr>
+                            <tr><td><strong>Macros</strong></td>
+                            <td><Button bsSize="xsmall" onClick={e=>this.props.handleResetMacros()} bsStyle="warning">Reset</Button></td></tr>
+                        </tbody></table>
+                        
+                        <h5 >Application Snapshot  <Label bsStyle="warning">Caution!</Label></h5>
+                        
+
                         <small className="help-block">This dialog allows to save an entire snapshot of the current state of application.</small>
                         <ApplicationSnapshot />
                         <ButtonToolbar>
@@ -301,6 +308,10 @@ const mapStateToProps = (state) => {
 
 const mapDispatchToProps = (dispatch) => {
     return {
+        handleResetMacros:() => {
+            confirm("Are you sure?",(data)=>{ if (data!==null) dispatch({type:"MACROS_RESET"}) })
+            
+        },
         handleSettingChange: (attrs) => {
             dispatch(setSettingsAttrs(attrs, 'settings'))
         },
